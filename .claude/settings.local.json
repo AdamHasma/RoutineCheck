@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create *)",
+      "Bash(npx create-vite@latest --template react --force .)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(cp -r \"c:/_Web Projekte/routine-check/vite-project/.\" \"c:/_Web Projekte/routine-check/\")",
+      "Bash(rm -rf \"c:/_Web Projekte/routine-check/vite-project\")",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)"
+    ]
+  }
+}
