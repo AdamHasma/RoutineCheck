@@ -40,9 +40,10 @@ export function AppProvider({ children }) {
     const tasks = type === 'morning' ? morningTasks : eveningTasks;
     const progress = dailyProgress;
     const checked = progress[type] || [];
+    const skipped = progress[`${type}Skipped`] || [];
 
-    // Find the next unchecked task in order
-    const nextUnchecked = tasks.find((t) => !checked.includes(t.id));
+    // Find the next unchecked/unskipped task in order
+    const nextUnchecked = tasks.find((t) => !checked.includes(t.id) && !skipped.includes(t.id));
     if (!nextUnchecked || nextUnchecked.id !== taskId) return; // not the next one
 
     const newChecked = [...checked, taskId];
@@ -60,6 +61,17 @@ export function AppProvider({ children }) {
       eveningTotal: eveningTasks.length,
     });
   }, [morningTasks, eveningTasks, dailyProgress]);
+
+  // Skip a task (separate from checked, does not count as completed)
+  const skipTask = useCallback((type, taskId) => {
+    const progress = dailyProgress;
+    const skippedKey = `${type}Skipped`;
+    const skipped = progress[skippedKey] || [];
+    if (skipped.includes(taskId) || (progress[type] || []).includes(taskId)) return;
+    const newProgress = { ...progress, [skippedKey]: [...skipped, taskId] };
+    setDailyProgressState(newProgress);
+    setDailyProgress(newProgress);
+  }, [dailyProgress]);
 
   // Uncheck last checked (undo last)
   const uncheckLast = useCallback((type) => {
@@ -80,7 +92,7 @@ export function AppProvider({ children }) {
       morningTasks, updateMorningTasks,
       eveningTasks, updateEveningTasks,
       dailyProgress,
-      checkTask, uncheckLast,
+      checkTask, skipTask, uncheckLast,
       theme,
     }}>
       {children}

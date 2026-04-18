@@ -23,35 +23,34 @@ function TrashIcon() {
   );
 }
 
-function GripIcon() {
+function SkipIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-      strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-      <circle cx="9" cy="5" r="1" fill="currentColor" stroke="none"/>
-      <circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/>
-      <circle cx="9" cy="19" r="1" fill="currentColor" stroke="none"/>
-      <circle cx="15" cy="5" r="1" fill="currentColor" stroke="none"/>
-      <circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/>
-      <circle cx="15" cy="19" r="1" fill="currentColor" stroke="none"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+      <g fill="currentColor">
+        <path fillRule="evenodd" clipRule="evenodd" d="M1.99999 2.7962V21.2037L12.5186 12L1.99999 2.7962Z" />
+        <path fillRule="evenodd" clipRule="evenodd" d="M12.5 2.7962V21.2037L23.0186 12L12.5 2.7962Z" />
+      </g>
     </svg>
   );
 }
 
 export default function RoutineList({ type }) {
   const { theme, morningTasks, eveningTasks, updateMorningTasks, updateEveningTasks,
-    dailyProgress, checkTask, uncheckLast } = useApp();
+    dailyProgress, checkTask, skipTask, uncheckLast } = useApp();
 
   const tasks = type === 'morning' ? morningTasks : eveningTasks;
   const updateTasks = type === 'morning' ? updateMorningTasks : updateEveningTasks;
   const checkedIds = dailyProgress[type] || [];
+  const skippedIds = dailyProgress[`${type}Skipped`] || [];
 
   const [editMode, setEditMode] = useState(false);
   const [newLabel, setNewLabel] = useState('');
-  const [dragIdx, setDragIdx] = useState(null);
-  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editingLabel, setEditingLabel] = useState('');
 
   const isChecked = (id) => checkedIds.includes(id);
-  const nextUncheckedId = tasks.find((t) => !isChecked(t.id))?.id;
+  const isSkipped = (id) => skippedIds.includes(id);
+  const nextUncheckedId = tasks.find((t) => !isChecked(t.id) && !isSkipped(t.id))?.id;
 
   const completedCount = checkedIds.filter((id) => tasks.some((t) => t.id === id)).length;
   const totalCount = tasks.length;
@@ -83,15 +82,11 @@ export default function RoutineList({ type }) {
     updateTasks(tasks.filter((t) => t.id !== id));
   }
 
-  function handleDragStart(idx) { setDragIdx(idx); }
-  function handleDragOver(e, idx) { e.preventDefault(); setDragOverIdx(idx); }
-  function handleDrop(idx) {
-    if (dragIdx === null || dragIdx === idx) { setDragIdx(null); setDragOverIdx(null); return; }
-    const newTasks = [...tasks];
-    const [moved] = newTasks.splice(dragIdx, 1);
-    newTasks.splice(idx, 0, moved);
-    updateTasks(newTasks);
-    setDragIdx(null); setDragOverIdx(null);
+  function commitRename(id) {
+    const label = editingLabel.trim();
+    if (label) updateTasks(tasks.map((t) => t.id === id ? { ...t, label } : t));
+    setEditingId(null);
+    setEditingLabel('');
   }
 
   function moveUp(idx) {
@@ -138,45 +133,49 @@ export default function RoutineList({ type }) {
 
         {tasks.map((task, idx) => {
           const checked = isChecked(task.id);
+          const skipped = isSkipped(task.id);
           const isNext = task.id === nextUncheckedId;
-          const locked = !checked && !isNext;
+          const locked = !checked && !skipped && !isNext;
 
           return (
             <div
               key={task.id}
-              draggable={editMode}
-              onDragStart={() => editMode && handleDragStart(idx)}
-              onDragOver={(e) => editMode && handleDragOver(e, idx)}
-              onDrop={() => editMode && handleDrop(idx)}
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200
                 ${cardBg}
                 ${isNext && !editMode ? nextItemGlow : ''}
                 ${checked ? 'opacity-55' : ''}
+                ${skipped && !editMode ? 'opacity-40' : ''}
                 ${locked && !editMode ? 'opacity-35' : ''}
-                ${dragOverIdx === idx && editMode ? 'border-dashed border-2 ' + accentBorder : ''}
               `}
             >
-              {/* Drag handle */}
-              {editMode && (
-                <span className="text-gray-300 cursor-grab active:cursor-grabbing">
-                  <GripIcon />
-                </span>
+              {/* Skip button */}
+              {!editMode && (
+                <button
+                  onClick={() => skipTask(type, task.id)}
+                  disabled={checked || skipped}
+                  className={`flex-shrink-0 p-1 transition-colors ${checked || skipped ? 'text-gray-200 cursor-not-allowed' : `${accentText} hover:opacity-70`}`}
+                  title="Aufgabe überspringen"
+                >
+                  <SkipIcon />
+                </button>
               )}
 
               {/* Checkbox */}
               {!editMode && (
                 <button
                   onClick={() => !locked && checkTask(type, task.id)}
-                  disabled={locked || checked}
+                  disabled={locked || checked || skipped}
                   className={`
                     w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0
                     transition-all duration-200
                     ${checked
                       ? `${checkedBg} border-transparent text-white`
-                      : locked
+                      : skipped
                         ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
-                        : `border-current ${accentText} hover:scale-110 active:scale-95 cursor-pointer`
+                        : locked
+                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                          : `border-current ${accentText} hover:scale-110 active:scale-95 cursor-pointer`
                     }
                   `}
                 >
@@ -193,9 +192,28 @@ export default function RoutineList({ type }) {
               </span>
 
               {/* Label */}
-              <span className={`flex-1 text-sm font-medium ${checked ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                {task.label}
-              </span>
+              {editMode && editingId === task.id ? (
+                <input
+                  autoFocus
+                  value={editingLabel}
+                  onChange={(e) => setEditingLabel(e.target.value)}
+                  onBlur={() => commitRename(task.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') commitRename(task.id);
+                    if (e.key === 'Escape') { setEditingId(null); setEditingLabel(''); }
+                  }}
+                  className={`flex-1 text-sm font-medium bg-transparent border-b-2 ${accentBorder} focus:outline-none text-gray-700`}
+                />
+              ) : (
+                <span
+                  className={`flex-1 text-sm font-medium ${checked ? 'line-through text-gray-400' : skipped ? 'text-gray-400' : 'text-gray-700'} ${editMode ? 'cursor-text' : ''}`}
+                  onClick={() => {
+                    if (editMode) { setEditingId(task.id); setEditingLabel(task.label); }
+                  }}
+                >
+                  {task.label}
+                </span>
+              )}
 
               {/* Edit controls */}
               {editMode && (
@@ -251,7 +269,7 @@ export default function RoutineList({ type }) {
 
       {/* Edit / Done button */}
       <button
-        onClick={() => setEditMode(!editMode)}
+        onClick={() => { setEditMode(!editMode); setEditingId(null); setEditingLabel(''); }}
         className={`w-full py-2 text-sm font-medium rounded-xl border transition-all
           ${editMode
             ? `${accentBg} ${accentHover} text-white border-transparent`
